@@ -1,25 +1,31 @@
 # Fase 1 — Analisador Léxico e Gerador de Assembly para ARMv7
 
 ## Instituição
+
 PUCPR
 
 ## Disciplina
+
 Construção de Interpretadores
 
 ## Professor
+
 Frank Alcantara
 
 ## Grupo
+
 RA1 - 26
 
 ## Integrantes
-| Nome | GitHub |
-|------|--------|
-| Renan Felipe Straub Czervinski | @usuario1 |
-| Renan de Rocco Pamplona | @usuario2 |
-| Victor Eduardo Surmacz | @usuario3 |
+
+| Nome                           | GitHub         |
+| ------------------------------ | -------------- |
+| Renan Felipe Straub Czervinski | @rczervinski   |
+| Renan de Rocco Pamplona        | @RenanPamplona |
+| Victor Eduardo Surmacz         | @VictorSurmacz |
 
 ## Descrição
+
 Compilador (Fase 1) que lê expressões aritméticas em notação polonesa reversa (RPN) a partir de um arquivo de texto, realiza análise léxica usando Autômatos Finitos Determinísticos e gera código Assembly ARMv7 compatível com o CPUlator DE1-SoC.
 
 ## Como executar
@@ -29,6 +35,7 @@ python main.py testes/teste1.txt
 ```
 
 O programa gera:
+
 - Resultados das expressões no terminal
 - Arquivo `.s` com o Assembly ARMv7 (mesmo nome do teste)
 - Arquivo `tokens.txt` com os tokens da última execução
@@ -40,6 +47,7 @@ python testes_lexico.py
 ```
 
 ## Como rodar o Assembly no CPUlator
+
 1. Acesse https://cpulator.01xz.net/?sys=arm-de1soc
 2. Copie o conteúdo do arquivo `.s` gerado
 3. Cole no editor do CPUlator
@@ -48,6 +56,7 @@ python testes_lexico.py
 6. O resultado aparece nos displays de 7 segmentos
 
 ## Estrutura do projeto
+
 ```
 ├── main.py              # ponto de entrada
 ├── lexico.py            # analisador léxico (AFD)
@@ -64,6 +73,7 @@ python testes_lexico.py
 ```
 
 ## Operações suportadas
+
 - Adição: `(A B +)`
 - Subtração: `(A B -)`
 - Multiplicação: `(A B *)`
