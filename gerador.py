@@ -136,104 +136,118 @@ def gerarAssembly(todos_tokens):
         linhas.append(f"    LDR R0, =resultado_{linha_atual}")      # endereco pra salvar
         linhas.append(f"    VSTR.F64 D0, [R0]")                     # salva na memoria
         linhas.append(f"    VPUSH {{D0}}")                           # devolve pra pilha
+
+        # =====================================================================
+        # mostra o resultado desta linha no display e espera botao pra avancar
+        # assim o usuario ve cada resultado antes de ir pro proximo
+        # =====================================================================
+        linhas.append(f"    @ --- mostrar linha {linha_atual} no display ---")
+        linhas.append(f"    VPOP {{D0}}")                           # pega o resultado
+
+        # multiplica por 100 pra ter 2 casas decimais no display
+        linhas.append(f"    LDR R0, =const_cem")
+        linhas.append(f"    VLDR.F64 D1, [R0]")
+        linhas.append(f"    VMUL.F64 D0, D0, D1")                  # D0 = resultado * 100
+        linhas.append(f"    VCVT.S32.F64 S0, D0")                  # converte pra inteiro
+        linhas.append(f"    VMOV R4, S0")                           # R4 = resultado * 100
+
+        # verifica se eh negativo
+        linhas.append(f"    MOV R8, #0")
+        linhas.append(f"    CMP R4, #0")
+        linhas.append(f"    BGE positivo_{linha_atual}")
+        linhas.append(f"    MOV R8, #1")
+        linhas.append(f"    RSB R4, R4, #0")
+        linhas.append(f"positivo_{linha_atual}:")
+
+        # prepara pra extrair digitos
+        linhas.append(f"    LDR R5, =tabela_7seg")
+        linhas.append(f"    MOV R6, #0")                            # HEX3-0
+        linhas.append(f"    MOV R7, #0")                            # HEX5-4
+
+        # digito 0 (centesimo) -> HEX0
+        linhas.append(f"    BL div10")
+        linhas.append(f"    LDR R0, [R5, R3, LSL #2]")
+        linhas.append(f"    ORR R6, R6, R0")
+        linhas.append(f"    MOV R4, R2")
+
+        # digito 1 (decimo) -> HEX1
+        linhas.append(f"    BL div10")
+        linhas.append(f"    LDR R0, [R5, R3, LSL #2]")
+        linhas.append(f"    LSL R0, R0, #8")
+        linhas.append(f"    ORR R6, R6, R0")
+        linhas.append(f"    MOV R4, R2")
+
+        # HEX2 = ponto decimal (segmento D = traco embaixo)
+        linhas.append(f"    MOV R0, #0x08")
+        linhas.append(f"    LSL R0, R0, #16")
+        linhas.append(f"    ORR R6, R6, R0")
+
+        # digito 2 (unidade) -> HEX3
+        linhas.append(f"    BL div10")
+        linhas.append(f"    LDR R0, [R5, R3, LSL #2]")
+        linhas.append(f"    LSL R0, R0, #24")
+        linhas.append(f"    ORR R6, R6, R0")
+        linhas.append(f"    MOV R4, R2")
+
+        # digito 3 (dezena) -> HEX4
+        linhas.append(f"    BL div10")
+        linhas.append(f"    LDR R0, [R5, R3, LSL #2]")
+        linhas.append(f"    ORR R7, R7, R0")
+        linhas.append(f"    MOV R4, R2")
+
+        # digito 4 -> HEX5 (sinal negativo ou centena)
+        linhas.append(f"    CMP R8, #1")
+        linhas.append(f"    BNE digito5_{linha_atual}")
+        linhas.append(f"    MOV R0, #0x40")
+        linhas.append(f"    LSL R0, R0, #8")
+        linhas.append(f"    ORR R7, R7, R0")
+        linhas.append(f"    B display_{linha_atual}")
+
+        linhas.append(f"digito5_{linha_atual}:")
+        linhas.append(f"    BL div10")
+        linhas.append(f"    LDR R0, [R5, R3, LSL #2]")
+        linhas.append(f"    LSL R0, R0, #8")
+        linhas.append(f"    ORR R7, R7, R0")
+
+        # escreve nos displays
+        linhas.append(f"display_{linha_atual}:")
+        linhas.append(f"    LDR R0, =0xFF200020")
+        linhas.append(f"    STR R6, [R0]")
+        linhas.append(f"    LDR R0, =0xFF200030")
+        linhas.append(f"    STR R7, [R0]")
+
+        # acende LEDs com o numero da linha atual (pra saber qual linha eh)
+        # linha 0 = 1 LED, linha 1 = 2 LEDs, etc
+        linhas.append(f"    LDR R0, =0xFF200000")
+        linhas.append(f"    LDR R1, =led_linha_{linha_atual}")
+        linhas.append(f"    LDR R2, [R1]")
+        linhas.append(f"    STR R2, [R0]")
+
+        # espera o usuario apertar KEY0 (botao 0) pra avancar pra proxima linha
+        # o botao fica no endereco 0xFF200050, bit 0
+        # fica num loop lendo o botao ate ele ser pressionado
+        linhas.append(f"espera_botao_{linha_atual}:")
+        linhas.append(f"    LDR R0, =0xFF20005C")                  # edge capture register dos botoes
+        linhas.append(f"    LDR R1, [R0]")                         # le quais botoes foram apertados
+        linhas.append(f"    TST R1, #1")                            # testa se KEY0 foi apertado (bit 0)
+        linhas.append(f"    BEQ espera_botao_{linha_atual}")        # se nao, volta a esperar
+        linhas.append(f"    STR R1, [R0]")                          # limpa o edge capture (escreve 1 pra resetar)
+
         linha_atual += 1
 
     # =========================================================================
-    # exibicao no display de 7 segmentos do DE1-SoC
-    # pega o resultado da ultima linha e mostra nos HEX displays
-    # o resultado eh um float, entao convertemos pra inteiro pra mostrar
+    # fim do programa — apaga displays e para
     # =========================================================================
     linhas.append("")
-    linhas.append("    @ --- exibir resultado no display de 7 segmentos ---")
-    linhas.append("    VPOP {D0}")                          # pega o ultimo resultado
-    linhas.append("    VCVT.S32.F64 S0, D0")               # converte float pra inteiro
-    linhas.append("    VMOV R4, S0")                        # R4 = resultado como inteiro
+    linhas.append("    @ --- fim: apaga displays ---")
+    linhas.append("    MOV R6, #0")
+    linhas.append("    LDR R0, =0xFF200020")
+    linhas.append("    STR R6, [R0]")
+    linhas.append("    LDR R0, =0xFF200030")
+    linhas.append("    STR R6, [R0]")
+    linhas.append("    LDR R0, =0xFF200000")
+    linhas.append("    STR R6, [R0]")
 
-    # verifica se eh negativo
-    linhas.append("    MOV R8, #0")                         # R8 = flag de sinal (0 = positivo)
-    linhas.append("    CMP R4, #0")
-    linhas.append("    BGE positivo")
-    linhas.append("    MOV R8, #1")                         # marca como negativo
-    linhas.append("    RSB R4, R4, #0")                     # inverte o sinal (R4 = -R4)
-    linhas.append("positivo:")
-
-    # extrai cada digito dividindo por 10 repetidamente
-    # a funcao div10 ta la embaixo: divide R4 por 10, quociente em R2, resto em R3
-    linhas.append("    LDR R5, =tabela_7seg")              # endereco da tabela de conversao
-    linhas.append("    MOV R6, #0")                         # R6 = valor acumulado pro HEX3-0
-    linhas.append("    MOV R7, #0")                         # R7 = valor acumulado pro HEX5-4
-
-    # digito 0 (unidade) -> HEX0
-    linhas.append("    BL div10")                           # chama subrotina: R2=quociente, R3=resto
-    linhas.append("    LDR R0, [R5, R3, LSL #2]")          # busca padrao 7seg do digito
-    linhas.append("    ORR R6, R6, R0")                     # coloca no HEX0 (bits 0-6)
-    linhas.append("    MOV R4, R2")                         # R4 = quociente (pro proximo digito)
-
-    # digito 1 (dezena) -> HEX1
-    linhas.append("    BL div10")
-    linhas.append("    LDR R0, [R5, R3, LSL #2]")
-    linhas.append("    LSL R0, R0, #8")                     # desloca 8 bits pra posicao do HEX1
-    linhas.append("    ORR R6, R6, R0")
-    linhas.append("    MOV R4, R2")
-
-    # digito 2 (centena) -> HEX2
-    linhas.append("    BL div10")
-    linhas.append("    LDR R0, [R5, R3, LSL #2]")
-    linhas.append("    LSL R0, R0, #16")                    # desloca 16 bits pra posicao do HEX2
-    linhas.append("    ORR R6, R6, R0")
-    linhas.append("    MOV R4, R2")
-
-    # digito 3 (milhar) -> HEX3
-    linhas.append("    BL div10")
-    linhas.append("    LDR R0, [R5, R3, LSL #2]")
-    linhas.append("    LSL R0, R0, #24")                    # desloca 24 bits pra posicao do HEX3
-    linhas.append("    ORR R6, R6, R0")
-    linhas.append("    MOV R4, R2")
-
-    # digito 4 (dez milhar) -> HEX4
-    linhas.append("    BL div10")
-    linhas.append("    LDR R0, [R5, R3, LSL #2]")
-    linhas.append("    ORR R7, R7, R0")                     # coloca no HEX4 (bits 0-6)
-    linhas.append("    MOV R4, R2")
-
-    # digito 5 -> HEX5 (mostra sinal negativo se precisar)
-    linhas.append("    CMP R8, #1")                         # eh negativo?
-    linhas.append("    BNE mostrar_digito5")
-    linhas.append("    MOV R0, #0x40")                      # padrao do '-' no 7seg (segmento G)
-    linhas.append("    LSL R0, R0, #8")
-    linhas.append("    ORR R7, R7, R0")
-    linhas.append("    B escrever_display")
-
-    linhas.append("mostrar_digito5:")
-    linhas.append("    BL div10")
-    linhas.append("    LDR R0, [R5, R3, LSL #2]")
-    linhas.append("    LSL R0, R0, #8")                     # desloca 8 bits pra posicao do HEX5
-    linhas.append("    ORR R7, R7, R0")
-
-    # escreve nos enderecos dos displays
-    linhas.append("escrever_display:")
-    linhas.append("    LDR R0, =0xFF200020")                # endereco HEX3-HEX0
-    linhas.append("    STR R6, [R0]")                       # escreve os 4 digitos de baixo
-    linhas.append("    LDR R0, =0xFF200030")                # endereco HEX5-HEX4
-    linhas.append("    STR R7, [R0]")                       # escreve os 2 digitos de cima
-
-    # tambem acende LEDs com o valor do resultado
-    linhas.append("")
-    linhas.append("    @ --- acender LEDs ---")
-    linhas.append("    LDR R0, =0xFF200000")                # endereco dos LEDs
-    linhas.append(f"    LDR R1, =resultado_{linha_atual - 1}")
-    linhas.append("    VLDR.F64 D0, [R1]")
-    linhas.append("    VCVT.S32.F64 S0, D0")
-    linhas.append("    VMOV R2, S0")                        # R2 = resultado como inteiro
-    linhas.append("    CMP R2, #0")
-    linhas.append("    BGE leds_positivo")
-    linhas.append("    RSB R2, R2, #0")                     # valor absoluto
-    linhas.append("leds_positivo:")
-    linhas.append("    LDR R3, =0x3FF")                     # mascara de 10 bits (carregada da memoria)
-    linhas.append("    AND R2, R2, R3")                     # limita a 10 bits (10 LEDs)
-    linhas.append("    STR R2, [R0]")                       # acende os LEDs
-
-    # fim do programa - loop infinito que para a execucao
     linhas.append("")
     linhas.append("    B _halt")
 
@@ -265,6 +279,9 @@ def gerarAssembly(todos_tokens):
     linhas.append("")
     linhas.append(".section .data")
 
+    # constante 100.0 pra multiplicar antes de mostrar no display
+    linhas.append("const_cem: .double 100.0")
+
     # tabela de conversao pra display de 7 segmentos
     linhas.append("tabela_7seg:")
     linhas.append("    .word 0x3F")     # 0 = segmentos a,b,c,d,e,f
@@ -289,6 +306,14 @@ def gerarAssembly(todos_tokens):
     # reserva espaco pra guardar o resultado de cada linha (pra RES usar)
     for i in range(linha_atual):
         linhas.append(f"resultado_{i}: .space 8")
+
+    # padrao de LEDs pra cada linha (indica qual linha ta sendo mostrada)
+    # linha 0 = 1 LED, linha 1 = 3 LEDs, linha 2 = 7 LEDs, etc
+    for i in range(linha_atual):
+        led_val = (1 << (i + 1)) - 1       # 1, 3, 7, 15, 31...
+        if led_val > 0x3FF:
+            led_val = 0x3FF                 # maximo 10 LEDs
+        linhas.append(f"led_linha_{i}: .word {led_val}")
 
     # junta tudo com quebra de linha e retorna o assembly completo
     return "\n".join(linhas)
